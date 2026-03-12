@@ -31,7 +31,7 @@ defmodule OpenAPI.MixProject do
     [
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.1", only: :dev, runtime: false},
       {:junit_formatter, "~> 3.4", only: [:test]},
       {:yaml_elixir, "~> 2.9"}
     ]
@@ -52,7 +52,7 @@ defmodule OpenAPI.MixProject do
       groups_for_extras: [
         Guides: ~r/guides\/.*/
       ],
-      groups_for_functions: [
+      groups_for_docs: [
         "Default Implementations": & &1[:default_implementation]
       ],
       groups_for_modules: [
