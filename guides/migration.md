@@ -2,6 +2,16 @@
 
 This document assists in the migration across breaking changes of the library.
 
+## Unreleased
+
+Operation processing now treats all non-path request params as first-class `opts` entries.
+This means:
+
+* `c:OpenAPI.Processor.operation_docstring/3` now receives query, header, and cookie params
+  together.
+* Generated `client.request/1` payloads may now include `headers` and `cookies` keys in addition
+  to `query`.
+
 ## 0.0.x to 0.1.0
 
 This version change represents a major rewrite of the core logic of the library.

@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+- **Breaking**: Custom processor implementations of
+  `c:OpenAPI.Processor.operation_docstring/3` now receive all non-path request params exposed
+  through `opts`, not just query params.
+
+- **Add**: Generated operation functions now expose header and cookie params through `opts`
+  alongside query params and pass them to `client.request/1` as `headers` and `cookies`.
+- **Add**: Generated operation docstrings now include header and cookie params in their
+  `## Options` section.
 
 ## 0.4.0 (2025-11-30)
 

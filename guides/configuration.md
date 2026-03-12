@@ -66,6 +66,8 @@ defmodule Example.Operations do
   def my_operation(path_param, body, opts \\ []) do
     client = opts[:client] || @default_client
     query = Keyword.take(opts, [:query_param])
+    headers = Keyword.take(opts, [:"x-header"])
+    cookies = Keyword.take(opts, [:session])
 
     client.request(%{
       args: [path_param: path_param, body: body],
@@ -74,6 +76,8 @@ defmodule Example.Operations do
       body: body,
       method: :post,
       query: query,
+      headers: headers,
+      cookies: cookies,
       request: [{"application/json", :map}],
       response: [{200, :map}, {404, {Example.NotFoundError, :t}}],
       opts: opts

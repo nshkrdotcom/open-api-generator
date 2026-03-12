@@ -9,6 +9,17 @@ Otherwise, maintenance can become a burden very quickly.
 
 Following are some recommendations for how to establish this relationship.
 
+## Generated Request Contract
+
+The default renderer generates operation functions that end in a call to `client.request/1`.
+Client implementations should expect a map containing the operation metadata (`args`, `call`,
+`url`, `method`, `request`, `response`, and `opts`) as well as `body`, `query`, `headers`, and
+`cookies` entries when those values are relevant to the operation.
+
+Query params continue to flow through `opts` as before.
+Header and cookie params declared directly in the OpenAPI operation are now exposed there as well,
+which lets client modules handle them explicitly instead of reconstructing them downstream.
+
 ## Cadence
 
 As mentioned above, some OpenAPI descriptions are updated often.
