@@ -1,4 +1,5 @@
 defmodule OpenAPI.Processor.Type do
+  @moduledoc false
   require Logger
 
   alias OpenAPI.Processor.State
@@ -59,7 +60,7 @@ defmodule OpenAPI.Processor.Type do
   encounters an object schema as a sub-field of the given schema, it will potentially modify the
   processor state in order to stash a new reference.
   """
-  @spec from_schema(%State{}, Schema.t() | Spec.ref()) :: {State.t(), t}
+  @spec from_schema(State.t(), Schema.t() | Spec.ref()) :: {State.t(), t}
   def from_schema(state, schema)
 
   # Schema references
