@@ -25,6 +25,37 @@ Custom plugins can read effective operation security requirements, generic `x-*`
 structured operation request/response docs, and schema/field documentation metadata directly from
 `OpenAPI.State.operations` and `OpenAPI.State.schemas` without re-reading the raw spec files.
 
+## Processed Metadata
+
+Renderer callbacks still receive the same processed state shape, but the structs now retain more
+of the original OpenAPI metadata:
+
+- `OpenAPI.State.operations` contains `OpenAPI.Processor.Operation` structs. Useful renderer-facing
+  fields include `summary`, `description`, `deprecated`, `tags`, `security`, `extensions`,
+  `request_body_docs`, and `response_docs`.
+- `operation.security` keeps omitted and explicit empty values distinct (`nil` versus `[]`), which
+  is useful when a plugin needs to tell the difference between inherited security and "no auth for
+  this operation".
+- `operation.request_body_docs` is either `nil` or a map with `description`, `required`, and
+  `content_types`.
+- `operation.response_docs` is a list of maps with `status`, `description`, and `content_types`.
+- `operation.request_path_parameters`, `operation.request_query_parameters`, and
+  `operation.request_header_parameters` contain `OpenAPI.Processor.Operation.Param` structs. These
+  preserve `description`, `deprecated`, `example`, `examples`, `extensions`, `location`, `style`,
+  and `explode`.
+- `OpenAPI.State.schemas` contains `OpenAPI.Processor.Schema` structs. Useful metadata fields
+  include `title`, `description`, `deprecated`, `example`, `examples`, `external_docs`, and
+  `extensions`.
+- `schema.fields` contains `OpenAPI.Processor.Schema.Field` structs. These preserve field-level
+  `description`, `deprecated`, `example`, `examples`, `external_docs`, `extensions`, `read_only`,
+  and `write_only` metadata.
+
+In practice, this means a custom renderer can inspect processed metadata directly instead of
+re-opening the raw spec. For example, `render_operation_doc/2` can use
+`operation.request_body_docs` and `operation.response_docs` to enrich generated documentation, and
+a schema renderer can use `field.external_docs` or `field.extensions` when emitting annotations or
+comments.
+
 ## Behaviours
 
 Both the _process_ and _render_ phases define a behaviour with optional callbacks.
