@@ -7,6 +7,7 @@ defmodule OpenAPI.Processor.Operation do
   alias OpenAPI.Processor.Operation.Param
   alias OpenAPI.Processor.State
   alias OpenAPI.Processor.Type
+  alias OpenAPI.Spec
   alias OpenAPI.Spec.Path.Operation, as: OperationSpec
   alias OpenAPI.Spec.RequestBody, as: RequestBodySpec
   alias OpenAPI.Spec.Response, as: ResponseSpec
@@ -16,6 +17,9 @@ defmodule OpenAPI.Processor.Operation do
   @typedoc "HTTP method"
   @type method :: :get | :put | :post | :delete | :options | :head | :patch | :trace
 
+  @typedoc "Operation response status"
+  @type response_status :: integer | :default | String.t()
+
   @typedoc "Request content types and their associated schema specs"
   @type request_body_unprocessed :: [{content_type :: String.t(), schema :: SchemaSpec.t()}]
 
@@ -24,37 +28,69 @@ defmodule OpenAPI.Processor.Operation do
 
   @typedoc "Response status codes and their associated schema specs"
   @type response_body_unprocessed :: [
-          {status :: integer | :default, schemas :: %{String.t() => SchemaSpec.t()}}
+          {status :: response_status(), schemas :: %{String.t() => SchemaSpec.t()}}
         ]
 
   @typedoc "Response status codes and their associated schemas"
-  @type response_body :: [{status :: integer | :default, schemas :: %{String.t() => Type.t()}}]
+  @type response_body :: [{status :: response_status(), schemas :: %{String.t() => Type.t()}}]
+
+  @typedoc "Structured request body metadata exposed to renderers"
+  @type request_body_docs :: %{
+          description: String.t() | nil,
+          required: boolean,
+          content_types: [String.t()]
+        }
+
+  @typedoc "Structured response metadata exposed to renderers"
+  @type response_doc :: %{
+          status: response_status(),
+          description: String.t(),
+          content_types: [String.t()]
+        }
 
   @typedoc "Processed operation data used by the renderer"
   @type t :: %__MODULE__{
+          summary: String.t() | nil,
+          description: String.t() | nil,
+          deprecated: boolean,
           docstring: String.t(),
+          external_docs: Spec.ExternalDocumentation.t() | nil,
           function_name: atom,
           module_name: atom,
           request_body: request_body,
+          request_body_docs: request_body_docs() | nil,
           request_header_parameters: [Param.t()],
           request_method: atom,
           request_path: String.t(),
           request_path_parameters: [Param.t()],
           request_query_parameters: [Param.t()],
-          responses: response_body
+          response_docs: [response_doc()],
+          responses: response_body,
+          security: Spec.security_requirements() | nil,
+          tags: [String.t()],
+          extensions: Spec.extensions()
         }
 
   defstruct [
+    :summary,
+    :description,
+    :deprecated,
     :docstring,
+    :external_docs,
     :function_name,
     :module_name,
     :request_body,
+    :request_body_docs,
     :request_header_parameters,
     :request_method,
     :request_path,
     :request_path_parameters,
     :request_query_parameters,
-    :responses
+    :response_docs,
+    :responses,
+    :security,
+    :tags,
+    :extensions
   ]
 
   @doc """
@@ -147,6 +183,7 @@ defmodule OpenAPI.Processor.Operation do
     content_types =
       content
       |> Map.keys()
+      |> Enum.sort()
       |> Enum.map_join(", ", &"`#{&1}`")
 
     if description do
@@ -194,6 +231,22 @@ defmodule OpenAPI.Processor.Operation do
 
   def request_body(_state, _operation_spec), do: []
 
+  @doc false
+  @spec request_body_docs(RequestBodySpec.t() | nil) :: request_body_docs() | nil
+  def request_body_docs(nil), do: nil
+
+  def request_body_docs(%RequestBodySpec{
+        description: description,
+        content: content,
+        required: required
+      }) do
+    %{
+      description: description,
+      required: required,
+      content_types: content_types(content)
+    }
+  end
+
   @doc """
   Cast the HTTP method to an atom
 
@@ -231,4 +284,40 @@ defmodule OpenAPI.Processor.Operation do
       {status_or_default, schemas}
     end)
   end
+
+  @doc false
+  @spec response_docs(OperationSpec.t()) :: [response_doc()]
+  def response_docs(%OperationSpec{responses: responses}) when is_map(responses) do
+    responses
+    |> sort_response_entries()
+    |> Enum.map(fn {status, %ResponseSpec{content: content, description: description}} ->
+      %{
+        status: status,
+        description: description,
+        content_types: content_types(content)
+      }
+    end)
+  end
+
+  def response_docs(_operation_spec), do: []
+
+  @spec content_types(map | nil) :: [String.t()]
+  defp content_types(content) when is_map(content) do
+    content
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
+  defp content_types(_content), do: []
+
+  @spec sort_response_entries(map) :: [{response_status(), ResponseSpec.t()}]
+  defp sort_response_entries(responses) do
+    Enum.sort_by(responses, fn {status, _response} -> response_sort_key(status) end)
+  end
+
+  @spec response_sort_key(response_status()) :: {non_neg_integer(), integer() | String.t()}
+  defp response_sort_key(status) when is_integer(status), do: {0, status}
+  defp response_sort_key(status) when is_binary(status), do: {1, status}
+  defp response_sort_key(:default), do: {2, "default"}
+  defp response_sort_key(status), do: {3, inspect(status)}
 end

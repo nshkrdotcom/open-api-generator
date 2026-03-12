@@ -21,6 +21,7 @@ defmodule OpenAPI.Spec do
   alias OpenAPI.Spec.Path.Item
   alias OpenAPI.Spec.Server
   alias OpenAPI.Spec.Tag
+  alias OpenAPI.Spec.Util
 
   @typedoc "Key or index of a Yaml document"
   @type path_segment :: String.t() | integer
@@ -31,6 +32,18 @@ defmodule OpenAPI.Spec do
   @typedoc "Reference to another part of the spec. Reserved for schemas in this library."
   @type ref :: {:ref, full_path}
 
+  @typedoc "String-keyed generic OpenAPI extensions"
+  @type extensions :: %{optional(String.t()) => term}
+
+  @typedoc "Security requirement map"
+  @type security_requirement :: %{optional(String.t()) => [String.t()]}
+
+  @typedoc "Security requirement list"
+  @type security_requirements :: [security_requirement]
+
+  @typedoc "Structured security scheme preserved from the raw spec"
+  @type security_scheme :: map
+
   #
   # Definition
   #
@@ -40,11 +53,12 @@ defmodule OpenAPI.Spec do
           openapi: String.t(),
           info: Info.t(),
           servers: [Server.t()],
-          paths: %{optional(:string) => Item.t()},
+          paths: %{optional(String.t()) => Item.t()},
           components: Components.t(),
-          security: [term],
-          tags: [term],
-          external_docs: ExternalDocumentation.t() | nil
+          security: security_requirements() | nil,
+          tags: [Tag.t()],
+          external_docs: ExternalDocumentation.t() | nil,
+          extensions: extensions()
         }
 
   defstruct [
@@ -55,7 +69,8 @@ defmodule OpenAPI.Spec do
     :components,
     :security,
     :tags,
-    :external_docs
+    :external_docs,
+    :extensions
   ]
 
   #
@@ -72,8 +87,10 @@ defmodule OpenAPI.Spec do
     {%State{} = state, servers} = decode_servers(state, yaml)
     {%State{} = state, components} = decode_components(state, yaml)
     {%State{} = state, paths} = decode_paths(state, yaml)
+    security = Util.security_requirements(yaml)
     {%State{} = state, tags} = decode_tags(state, yaml)
     {%State{} = state, external_docs} = decode_external_docs(state, yaml)
+    extensions = Util.extensions(yaml)
 
     spec = %__MODULE__{
       openapi: spec_version,
@@ -81,9 +98,10 @@ defmodule OpenAPI.Spec do
       servers: servers,
       paths: paths,
       components: components,
-      security: [],
+      security: security,
       tags: tags,
-      external_docs: external_docs
+      external_docs: external_docs,
+      extensions: extensions
     }
 
     %State{state | spec: merge(state.spec, spec)}
@@ -167,7 +185,8 @@ defmodule OpenAPI.Spec do
       components: components_one,
       security: security_one,
       tags: tags_one,
-      external_docs: external_docs_one
+      external_docs: external_docs_one,
+      extensions: extensions_one
     } = spec_one
 
     %__MODULE__{
@@ -175,7 +194,8 @@ defmodule OpenAPI.Spec do
       paths: paths_two,
       components: components_two,
       security: security_two,
-      tags: tags_two
+      tags: tags_two,
+      extensions: extensions_two
     } = spec_two
 
     %__MODULE__{
@@ -187,9 +207,17 @@ defmodule OpenAPI.Spec do
           Item.merge(item_one, item_two)
         end),
       components: Components.merge(components_one, components_two),
-      security: security_one ++ security_two,
+      security: merge_security(security_one, security_two),
       tags: Enum.uniq_by(tags_two ++ tags_one, & &1.name),
-      external_docs: external_docs_one
+      external_docs: external_docs_one,
+      extensions: Map.merge(extensions_one, extensions_two)
     }
   end
+
+  @spec merge_security(security_requirements() | nil, security_requirements() | nil) ::
+          security_requirements() | nil
+  defp merge_security(nil, nil), do: nil
+  defp merge_security(nil, security), do: security
+  defp merge_security(security, nil), do: security
+  defp merge_security(security_one, security_two), do: security_one ++ security_two
 end

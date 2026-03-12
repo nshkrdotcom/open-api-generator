@@ -8,6 +8,7 @@ defmodule OpenAPI.Spec.Components do
   alias OpenAPI.Spec.Response
   alias OpenAPI.Spec.Schema
   alias OpenAPI.Spec.Schema.Example
+  alias OpenAPI.Spec.Util
 
   @type t :: %__MODULE__{
           schemas: %{optional(String.t()) => [Schema.t()]},
@@ -16,7 +17,7 @@ defmodule OpenAPI.Spec.Components do
           examples: %{optional(String.t()) => [Example.t()]},
           request_bodies: %{optional(String.t()) => [RequestBody.t()]},
           headers: %{optional(String.t()) => [Spec.Path.Header.t()]},
-          security_schemes: %{optional(String.t()) => [nil]},
+          security_schemes: %{optional(String.t()) => Spec.security_scheme()},
           links: %{optional(String.t()) => [Spec.Link.t()]},
           callbacks: %{optional(String.t()) => [nil]}
         }
@@ -41,6 +42,7 @@ defmodule OpenAPI.Spec.Components do
     {state, request_bodies} = decode_request_bodies(state, yaml)
     {state, responses} = decode_responses(state, yaml)
     {state, schemas} = decode_schemas(state, yaml)
+    {state, security_schemes} = decode_security_schemes(state, yaml)
 
     components = %__MODULE__{
       schemas: schemas,
@@ -49,7 +51,7 @@ defmodule OpenAPI.Spec.Components do
       examples: examples,
       request_bodies: request_bodies,
       headers: %{},
-      security_schemes: %{},
+      security_schemes: security_schemes,
       links: %{},
       callbacks: %{}
     }
@@ -146,6 +148,10 @@ defmodule OpenAPI.Spec.Components do
 
     {state, Map.put(schemas, name, schema)}
   end
+
+  @spec decode_security_schemes(map, map) ::
+          {map, %{optional(String.t()) => Spec.security_scheme()}}
+  defp decode_security_schemes(state, yaml), do: {state, Util.security_schemes(yaml)}
 
   @doc false
   @spec merge(t, t) :: t

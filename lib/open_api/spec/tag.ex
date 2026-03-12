@@ -2,6 +2,7 @@ defmodule OpenAPI.Spec.Tag do
   @moduledoc "Raw tag from the OpenAPI spec"
   alias OpenAPI.Spec
   alias OpenAPI.Spec.ExternalDocumentation
+  alias OpenAPI.Spec.Util
 
   #
   # Definition
@@ -10,13 +11,15 @@ defmodule OpenAPI.Spec.Tag do
   @type t :: %__MODULE__{
           name: String.t(),
           description: String.t() | nil,
-          external_docs: Spec.ExternalDocumentation.t() | nil
+          external_docs: Spec.ExternalDocumentation.t() | nil,
+          extensions: Spec.extensions()
         }
 
   defstruct [
     :name,
     :description,
-    :external_docs
+    :external_docs,
+    :extensions
   ]
 
   #
@@ -31,7 +34,8 @@ defmodule OpenAPI.Spec.Tag do
     tag = %__MODULE__{
       name: Map.fetch!(yaml, "name"),
       description: Map.get(yaml, "description"),
-      external_docs: docs
+      external_docs: docs,
+      extensions: Util.extensions(yaml)
     }
 
     {state, tag}

@@ -2,18 +2,22 @@ defmodule OpenAPI.Spec.RequestBody do
   @moduledoc "Raw request body from the OpenAPI spec"
   import OpenAPI.Reader.State
 
+  alias OpenAPI.Spec
   alias OpenAPI.Spec.Schema.Media
+  alias OpenAPI.Spec.Util
 
   @type t :: %__MODULE__{
           description: String.t() | nil,
           content: %{optional(String.t()) => Media.t()},
-          required: boolean
+          required: boolean,
+          extensions: Spec.extensions()
         }
 
   defstruct [
     :description,
     :content,
-    :required
+    :required,
+    :extensions
   ]
 
   @doc false
@@ -24,7 +28,8 @@ defmodule OpenAPI.Spec.RequestBody do
     request_body = %__MODULE__{
       description: Map.get(yaml, "description"),
       content: content,
-      required: Map.get(yaml, "required", false)
+      required: Map.get(yaml, "required", false),
+      extensions: Util.extensions(yaml)
     }
 
     {state, request_body}

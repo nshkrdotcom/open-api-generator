@@ -6,6 +6,7 @@ defmodule OpenAPI.Spec.Schema do
   alias OpenAPI.Spec.ExternalDocumentation
   alias OpenAPI.Spec.Schema.Discriminator
   alias OpenAPI.Spec.Schema.XML
+  alias OpenAPI.Spec.Util
 
   #
   # Definition
@@ -60,7 +61,8 @@ defmodule OpenAPI.Spec.Schema do
           external_docs: Spec.ExternalDocumentation.t() | nil,
           example: any,
           examples: list() | nil,
-          deprecated: boolean
+          deprecated: boolean,
+          extensions: Spec.extensions()
         }
 
   # credo:disable-for-next-line Credo.Check.Warning.StructFieldAmount
@@ -106,7 +108,8 @@ defmodule OpenAPI.Spec.Schema do
     :external_docs,
     :example,
     :examples,
-    :deprecated
+    :deprecated,
+    :extensions
   ]
 
   #
@@ -188,7 +191,8 @@ defmodule OpenAPI.Spec.Schema do
       external_docs: docs,
       example: Map.get(yaml, "example"),
       examples: Map.get(yaml, "examples"),
-      deprecated: Map.get(yaml, "deprecated", false)
+      deprecated: Map.get(yaml, "deprecated", false),
+      extensions: Util.extensions(yaml)
     }
 
     {state, schema}

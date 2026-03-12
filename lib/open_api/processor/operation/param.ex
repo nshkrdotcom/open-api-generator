@@ -4,7 +4,9 @@ defmodule OpenAPI.Processor.Operation.Param do
   """
   alias OpenAPI.Processor.State
   alias OpenAPI.Processor.Type
+  alias OpenAPI.Spec
   alias OpenAPI.Spec.Path.Parameter
+  alias OpenAPI.Spec.Schema.Example
 
   @typedoc "Location of the param"
   @type location :: :cookie | :header | :path | :query
@@ -16,34 +18,57 @@ defmodule OpenAPI.Processor.Operation.Param do
   @typedoc "Processed param data used by the renderer"
   @type t :: %__MODULE__{
           description: String.t() | nil,
+          deprecated: boolean,
+          example: any,
+          examples: %{optional(String.t()) => Example.t()},
           explode: boolean,
+          extensions: Spec.extensions(),
           location: location,
           name: String.t(),
+          required: boolean,
           style: style,
           value_type: Type.t()
         }
 
-  defstruct [
-    :description,
-    :explode,
-    :name,
-    :location,
-    :style,
-    :value_type
-  ]
+  defstruct description: nil,
+            deprecated: false,
+            example: nil,
+            examples: %{},
+            explode: false,
+            extensions: %{},
+            location: nil,
+            name: nil,
+            required: false,
+            style: nil,
+            value_type: nil
 
   @doc false
   @spec from_spec(State.t(), Parameter.t()) :: {State.t(), t}
   def from_spec(state, %Parameter{} = param) do
-    %Parameter{description: description, explode: explode, name: name} = param
+    %Parameter{
+      description: description,
+      deprecated: deprecated,
+      example: example,
+      examples: examples,
+      explode: explode,
+      name: name,
+      required: required,
+      extensions: extensions
+    } = param
+
     {state, value_type} = value_type(state, param)
 
     param =
       %__MODULE__{
         description: description,
+        deprecated: deprecated,
+        example: example,
+        examples: examples,
         explode: explode,
+        extensions: extensions,
         name: name,
         location: location(param),
+        required: required,
         style: style(param),
         value_type: value_type
       }

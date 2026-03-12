@@ -336,6 +336,8 @@ defmodule OpenAPI.Processor do
     docstring = implementation.operation_docstring(state, operation_spec, query_params)
     module_names = implementation.operation_module_names(state, operation_spec)
     request_method = implementation.operation_request_method(state, operation_spec)
+    request_body_docs = Operation.request_body_docs(operation_spec.request_body)
+    response_docs = Operation.response_docs(operation_spec)
 
     for module_name <- module_names, reduce: state do
       state ->
@@ -350,16 +352,25 @@ defmodule OpenAPI.Processor do
           |> process_response_body(state, module_name, function_name)
 
         operation = %Operation{
+          summary: operation_spec.summary,
+          description: operation_spec.description,
+          deprecated: operation_spec.deprecated,
           docstring: docstring,
+          external_docs: operation_spec.external_docs,
           function_name: function_name,
           module_name: module_name,
           request_body: request_body,
+          request_body_docs: request_body_docs,
           request_header_parameters: header_params,
           request_method: request_method,
           request_path: request_path,
           request_path_parameters: path_params,
           request_query_parameters: query_params,
-          responses: response_body
+          response_docs: response_docs,
+          responses: response_body,
+          security: operation_spec.security,
+          tags: operation_spec.tags,
+          extensions: operation_spec.extensions
         }
 
         %State{state | operations: [operation | state.operations]}
@@ -496,11 +507,19 @@ defmodule OpenAPI.Processor do
 
     field = %Field{
       default: default,
+      description: field_description(field_spec),
+      deprecated: field_deprecated(field_spec),
+      example: field_example(field_spec),
+      examples: field_examples(field_spec),
+      external_docs: field_external_docs(field_spec),
+      extensions: field_extensions(field_spec),
       name: field_name,
       nullable: nullable?,
       private: false,
+      read_only: field_read_only(field_spec),
       required: required?,
-      type: type
+      type: type,
+      write_only: field_write_only(field_spec)
     }
 
     {state, field}
@@ -509,8 +528,32 @@ defmodule OpenAPI.Processor do
   defp field_default(%SchemaSpec{default: default}), do: default
   defp field_default({:ref, _}), do: nil
 
+  defp field_description(%SchemaSpec{description: description}), do: description
+  defp field_description({:ref, _}), do: nil
+
+  defp field_deprecated(%SchemaSpec{deprecated: deprecated}), do: deprecated
+  defp field_deprecated({:ref, _}), do: false
+
+  defp field_example(%SchemaSpec{example: example}), do: example
+  defp field_example({:ref, _}), do: nil
+
+  defp field_examples(%SchemaSpec{examples: examples}), do: examples
+  defp field_examples({:ref, _}), do: nil
+
+  defp field_external_docs(%SchemaSpec{external_docs: external_docs}), do: external_docs
+  defp field_external_docs({:ref, _}), do: nil
+
+  defp field_extensions(%SchemaSpec{extensions: extensions}), do: extensions
+  defp field_extensions({:ref, _}), do: %{}
+
   defp field_nullable(%SchemaSpec{nullable: nullable?}), do: nullable?
   defp field_nullable({:ref, _}), do: false
+
+  defp field_read_only(%SchemaSpec{read_only: read_only}), do: read_only
+  defp field_read_only({:ref, _}), do: false
+
+  defp field_write_only(%SchemaSpec{write_only: write_only}), do: write_only
+  defp field_write_only({:ref, _}), do: false
 
   defp apply_field_casing(state, field_name) do
     case config(state)[:field_casing] do

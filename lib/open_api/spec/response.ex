@@ -2,22 +2,26 @@ defmodule OpenAPI.Spec.Response do
   @moduledoc "Raw response from the OpenAPI spec"
   import OpenAPI.Reader.State
 
+  alias OpenAPI.Spec
   alias OpenAPI.Spec.Link
   alias OpenAPI.Spec.Path.Header
   alias OpenAPI.Spec.Schema.Media
+  alias OpenAPI.Spec.Util
 
   @type t :: %__MODULE__{
           description: String.t(),
           headers: %{optional(String.t()) => Header.t()},
           content: %{optional(String.t()) => Media.t()},
-          links: %{optional(String.t()) => Link.t()}
+          links: %{optional(String.t()) => Link.t()},
+          extensions: Spec.extensions()
         }
 
   defstruct [
     :description,
     :headers,
     :content,
-    :links
+    :links,
+    :extensions
   ]
 
   @doc false
@@ -31,7 +35,8 @@ defmodule OpenAPI.Spec.Response do
       description: Map.fetch!(yaml, "description"),
       headers: headers,
       content: content,
-      links: links
+      links: links,
+      extensions: Util.extensions(yaml)
     }
 
     {state, response}

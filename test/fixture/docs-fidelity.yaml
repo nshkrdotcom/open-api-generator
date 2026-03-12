@@ -1,0 +1,170 @@
+openapi: 3.0.3
+info:
+  title: Docs Fidelity API
+  version: 1.0.0
+security:
+  - bearerAuth: []
+tags:
+  - name: Widgets
+    description: Widget endpoints
+    externalDocs:
+      description: Widget tag docs
+      url: https://example.com/docs/tags/widgets
+    x-tag-group: catalog
+paths:
+  /widgets/{widget_id}:
+    get:
+      tags:
+        - Widgets
+      summary: Retrieve a widget
+      description: Returns a single widget.
+      operationId: get-widget
+      deprecated: true
+      externalDocs:
+        description: Widget docs
+        url: https://example.com/docs/widgets/get
+      security: []
+      x-trace-category: widgets
+      parameters:
+        - name: widget_id
+          in: path
+          required: true
+          description: The widget identifier.
+          deprecated: true
+          example: widget-123
+          examples:
+            alt:
+              summary: Alternate widget id
+              value: widget-456
+          x-param-meta:
+            visibility: public
+          schema:
+            type: string
+        - name: include_archived
+          in: query
+          description: Include archived widgets.
+          deprecated: true
+          example: true
+          examples:
+            standard:
+              summary: Standard query
+              value: false
+          x-param-meta:
+            visibility: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Widget returned.
+          x-response-note: primary response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+            application/vnd.api+json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+        "404":
+          description: Widget not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+  /widgets:
+    post:
+      tags:
+        - Widgets
+      summary: Create a widget
+      description: Creates a new widget.
+      operationId: create-widget
+      security:
+        - bearerAuth:
+            - widgets:write
+      x-trace-category: widget-create
+      requestBody:
+        description: Widget payload.
+        required: true
+        x-request-body-note: widget payload
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WidgetInput"
+      responses:
+        "201":
+          description: Widget created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+  /health:
+    get:
+      summary: Health check
+      operationId: health-check
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Use a bearer token.
+      x-security-meta:
+        provider: example
+  schemas:
+    WidgetInput:
+      title: WidgetInput
+      description: Input for a widget.
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name for the new widget.
+    Widget:
+      title: Widget
+      description: A widget resource.
+      deprecated: true
+      example:
+        id: widget-123
+        name: Primary widget
+      examples:
+        - id: widget-example
+          name: Example widget
+      externalDocs:
+        description: Widget schema docs
+        url: https://example.com/docs/schemas/widget
+      x-schema-level: schema extension
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Widget identifier.
+          deprecated: true
+          readOnly: true
+          example: widget-123
+          examples:
+            - widget-abc
+          externalDocs:
+            description: Widget id docs
+            url: https://example.com/docs/schemas/widget-id
+          x-field-note: field extension
+        name:
+          type: string
+          description: Widget name.
+          writeOnly: true
+          example: Primary widget
+        metadata:
+          type: object
+          description: Flexible widget metadata.
+          additionalProperties: true
+x-root-owner:
+  team: generator

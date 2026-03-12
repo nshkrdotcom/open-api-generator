@@ -6,6 +6,7 @@ defmodule OpenAPI.Spec.Path.Parameter do
   alias OpenAPI.Spec.Schema
   alias OpenAPI.Spec.Schema.Example
   alias OpenAPI.Spec.Schema.Media
+  alias OpenAPI.Spec.Util
 
   @type t :: %__MODULE__{
           name: String.t(),
@@ -20,7 +21,8 @@ defmodule OpenAPI.Spec.Path.Parameter do
           schema: Schema.t() | Spec.ref() | nil,
           example: any,
           examples: %{optional(String.t()) => Example.t()},
-          content: %{optional(String.t()) => Media.t()}
+          content: %{optional(String.t()) => Media.t()},
+          extensions: Spec.extensions()
         }
 
   defstruct [
@@ -36,7 +38,8 @@ defmodule OpenAPI.Spec.Path.Parameter do
     :schema,
     :example,
     :examples,
-    :content
+    :content,
+    :extensions
   ]
 
   @doc false
@@ -60,7 +63,8 @@ defmodule OpenAPI.Spec.Path.Parameter do
         schema: schema,
         example: Map.get(yaml, "example"),
         examples: examples,
-        content: content
+        content: content,
+        extensions: Util.extensions(yaml)
       }
       |> default_style()
       |> default_explode()

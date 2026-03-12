@@ -17,6 +17,7 @@ defmodule OpenAPI.Processor.Schema do
   """
   alias OpenAPI.Processor.Schema.Field
   alias OpenAPI.Processor.Type
+  alias OpenAPI.Spec
   alias OpenAPI.Spec.Schema, as: SchemaSpec
 
   @typedoc "Format of rendering the schema (full struct or inline typespec)"
@@ -25,18 +26,32 @@ defmodule OpenAPI.Processor.Schema do
   @typedoc "Processed schema used by the renderer"
   @type t :: %__MODULE__{
           context: [tuple],
+          description: String.t() | nil,
+          deprecated: boolean,
+          example: any,
+          examples: list() | nil,
+          external_docs: Spec.ExternalDocumentation.t() | nil,
+          extensions: Spec.extensions(),
           fields: [Field.t()],
           module_name: module,
           output_format: format | nil,
           ref: reference,
+          title: String.t() | nil,
           type_name: atom
         }
 
   defstruct context: [],
+            description: nil,
+            deprecated: false,
+            example: nil,
+            examples: nil,
+            external_docs: nil,
+            extensions: %{},
             fields: [],
             module_name: nil,
             output_format: nil,
             ref: nil,
+            title: nil,
             type_name: nil
 
   #
@@ -47,10 +62,17 @@ defmodule OpenAPI.Processor.Schema do
   @spec map(reference) :: t
   def map(ref) do
     %__MODULE__{
+      description: nil,
+      deprecated: false,
+      example: nil,
+      examples: nil,
+      external_docs: nil,
+      extensions: %{},
       fields: [],
       module_name: nil,
       output_format: :none,
       ref: ref,
+      title: nil,
       type_name: :map
     }
   end
@@ -58,14 +80,30 @@ defmodule OpenAPI.Processor.Schema do
   @doc false
   @spec new(reference, SchemaSpec.t(), [Field.t()]) :: t
   def new(ref, schema_spec, fields) do
-    %SchemaSpec{"$oag_schema_context": context} = schema_spec
+    %SchemaSpec{
+      "$oag_schema_context": context,
+      description: description,
+      deprecated: deprecated,
+      example: example,
+      examples: examples,
+      external_docs: external_docs,
+      extensions: extensions,
+      title: title
+    } = schema_spec
 
     %__MODULE__{
       context: context,
+      description: description,
+      deprecated: deprecated,
+      example: example,
+      examples: examples,
+      external_docs: external_docs,
+      extensions: extensions,
       fields: fields,
       module_name: nil,
       output_format: nil,
       ref: ref,
+      title: title,
       type_name: nil
     }
   end
@@ -89,22 +127,23 @@ defmodule OpenAPI.Processor.Schema do
 
     fields =
       Map.merge(fields_a, fields_b, fn name, field_a, field_b ->
-        %Field{
-          name: name,
-          nullable: field_a.nullable or field_b.nullable,
-          private: field_a.private and field_b.private,
-          required: field_a.required and field_b.required,
-          type: Type.merge(field_a.type, field_b.type)
-        }
+        merge_field(name, field_a, field_b)
       end)
       |> Map.values()
 
     %__MODULE__{
       context: Enum.uniq(schema_a.context ++ schema_b.context),
+      description: first_non_nil(schema_a.description, schema_b.description),
+      deprecated: schema_a.deprecated or schema_b.deprecated,
+      example: first_non_nil(schema_a.example, schema_b.example),
+      examples: merge_examples(schema_a.examples, schema_b.examples),
+      external_docs: first_non_nil(schema_a.external_docs, schema_b.external_docs),
+      extensions: Map.merge(schema_a.extensions, schema_b.extensions),
       fields: fields,
       module_name: schema_a.module_name,
       output_format: schema_a.output_format,
       ref: schema_a.ref,
+      title: first_non_nil(schema_a.title, schema_b.title),
       type_name: schema_a.type_name
     }
   end
@@ -124,4 +163,34 @@ defmodule OpenAPI.Processor.Schema do
   def put_output_format(%__MODULE__{} = schema, format) do
     %__MODULE__{schema | output_format: format}
   end
+
+  @spec merge_field(String.t(), Field.t(), Field.t()) :: Field.t()
+  defp merge_field(name, field_a, field_b) do
+    %Field{
+      default: first_non_nil(field_a.default, field_b.default),
+      description: first_non_nil(field_a.description, field_b.description),
+      deprecated: field_a.deprecated or field_b.deprecated,
+      example: first_non_nil(field_a.example, field_b.example),
+      examples: merge_examples(field_a.examples, field_b.examples),
+      external_docs: first_non_nil(field_a.external_docs, field_b.external_docs),
+      extensions: Map.merge(field_a.extensions, field_b.extensions),
+      name: name,
+      nullable: field_a.nullable or field_b.nullable,
+      private: field_a.private and field_b.private,
+      read_only: field_a.read_only or field_b.read_only,
+      required: field_a.required and field_b.required,
+      type: Type.merge(field_a.type, field_b.type),
+      write_only: field_a.write_only or field_b.write_only
+    }
+  end
+
+  @spec merge_examples(list() | nil, list() | nil) :: list() | nil
+  defp merge_examples(nil, nil), do: nil
+  defp merge_examples(nil, examples), do: examples
+  defp merge_examples(examples, nil), do: examples
+  defp merge_examples(examples_a, examples_b), do: Enum.uniq(examples_a ++ examples_b)
+
+  @spec first_non_nil(term, term) :: term
+  defp first_non_nil(nil, fallback), do: fallback
+  defp first_non_nil(value, _fallback), do: value
 end

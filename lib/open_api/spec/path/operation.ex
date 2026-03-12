@@ -8,6 +8,9 @@ defmodule OpenAPI.Spec.Path.Operation do
   alias OpenAPI.Spec.RequestBody
   alias OpenAPI.Spec.Response
   alias OpenAPI.Spec.Server
+  alias OpenAPI.Spec.Util
+
+  @type response_status :: pos_integer | :default | String.t()
 
   @type t :: %__MODULE__{
           "$oag_base_file": String.t(),
@@ -24,11 +27,12 @@ defmodule OpenAPI.Spec.Path.Operation do
           operation_id: String.t() | nil,
           parameters: [Parameter.t()],
           request_body: RequestBody.t() | nil,
-          responses: %{optional(pos_integer | :default) => Response.t()},
+          responses: %{optional(response_status) => Response.t()},
           callbacks: nil,
           deprecated: boolean,
-          security: nil,
-          servers: [Server.t()]
+          security: Spec.security_requirements() | nil,
+          servers: [Server.t()],
+          extensions: Spec.extensions()
         }
 
   defstruct [
@@ -50,7 +54,8 @@ defmodule OpenAPI.Spec.Path.Operation do
     :callbacks,
     :deprecated,
     :security,
-    :servers
+    :servers,
+    :extensions
   ]
 
   @doc false
@@ -61,6 +66,8 @@ defmodule OpenAPI.Spec.Path.Operation do
     {state, request_body} = decode_request_body(state, yaml)
     {state, responses} = decode_responses(state, yaml)
     {state, servers} = decode_servers(state, yaml)
+    security = Util.security_requirements(yaml)
+    extensions = Util.extensions(yaml)
 
     reverse_base_file_path = Map.fetch!(state, :base_file_path)
     [method, path | _] = reverse_base_file_path
@@ -83,8 +90,9 @@ defmodule OpenAPI.Spec.Path.Operation do
       responses: responses,
       callbacks: nil,
       deprecated: Map.get(yaml, "deprecated", false),
-      security: nil,
-      servers: servers
+      security: security,
+      servers: servers,
+      extensions: extensions
     }
 
     {state, operation}

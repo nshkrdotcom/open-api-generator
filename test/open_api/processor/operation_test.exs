@@ -6,7 +6,9 @@ defmodule OpenAPI.Processor.OperationTest do
   alias OpenAPI.Spec.ExternalDocumentation
   alias OpenAPI.Spec.Path.Operation, as: OpSpec
   alias OpenAPI.Spec.RequestBody
+  alias OpenAPI.Spec.Response
   alias OpenAPI.Spec.Schema, as: SchemaSpec
+  alias OpenAPI.Spec.Schema.Media, as: MediaSpec
 
   describe "docstring/3" do
     test "creates a docstring with minimal information" do
@@ -239,6 +241,71 @@ defmodule OpenAPI.Processor.OperationTest do
                """
                Creates something
                """
+    end
+  end
+
+  describe "request_body_docs/1" do
+    test "returns structured request body docs" do
+      request_body = %RequestBody{
+        description: "Widget payload",
+        content: %{
+          "application/json" => %MediaSpec{},
+          "text/plain" => %MediaSpec{}
+        },
+        required: true
+      }
+
+      assert Operation.request_body_docs(request_body) == %{
+               description: "Widget payload",
+               required: true,
+               content_types: ["application/json", "text/plain"]
+             }
+    end
+
+    test "returns nil when request body is missing" do
+      assert Operation.request_body_docs(nil) == nil
+    end
+  end
+
+  describe "response_docs/1" do
+    test "returns structured response docs" do
+      operation = %OpSpec{
+        responses: %{
+          404 => %Response{
+            description: "Missing",
+            content: %{}
+          },
+          200 => %Response{
+            description: "OK",
+            content: %{
+              "application/json" => %MediaSpec{},
+              "application/vnd.api+json" => %MediaSpec{}
+            }
+          },
+          :default => %Response{
+            description: "Fallback",
+            content: %{}
+          }
+        }
+      }
+
+      assert Operation.response_docs(operation) == [
+               %{
+                 status: 200,
+                 description: "OK",
+                 content_types: ["application/json", "application/vnd.api+json"]
+               },
+               %{
+                 status: 404,
+                 description: "Missing",
+                 content_types: []
+               },
+               %{
+                 status: :default,
+                 description: "Fallback",
+                 content_types: []
+               }
+             ]
     end
   end
 end

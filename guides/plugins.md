@@ -20,6 +20,11 @@ There are three overall phases involved in code generation:
 Through all three phases, the library uses an `OpenAPI.State` struct to keep track of changes.
 Each phase also implements its own "state" struct, with intermediate data useful for that phase.
 
+The processed structs exposed to renderer callbacks preserve more than routing and types.
+Custom plugins can read security requirements, generic `x-*` extensions, structured operation
+request/response docs, and schema/field documentation metadata directly from
+`OpenAPI.State.operations` and `OpenAPI.State.schemas` without re-reading the raw spec files.
+
 ## Behaviours
 
 Both the _process_ and _render_ phases define a behaviour with optional callbacks.

@@ -1,13 +1,33 @@
 defmodule OpenAPIGenerationTest do
   use ExUnit.Case, async: false
 
+  alias OpenAPI.TestSupport
+
   defmodule Client do
     @moduledoc false
 
     def request(payload), do: payload
   end
 
+  defmodule MetadataRenderer do
+    use OpenAPI.Renderer
+
+    alias OpenAPI.Renderer.File
+    alias OpenAPI.Renderer.State
+
+    @impl OpenAPI.Renderer
+    def render(%State{profile: profile} = state, %File{} = file) do
+      test_pid =
+        Application.get_env(:oapi_generator, profile, [])
+        |> Keyword.fetch!(:test_pid)
+
+      send(test_pid, {:render_file, file.module, file.operations, file.schemas})
+      OpenAPI.Renderer.render(state, file)
+    end
+  end
+
   @profile :open_api_generation_test
+  @docs_fidelity_fixture TestSupport.fixture_path("docs-fidelity.yaml")
 
   @spec_json """
   {
@@ -123,5 +143,68 @@ defmodule OpenAPIGenerationTest do
 
     assert request.headers == [{:"x-override-name", "Bob"}]
     assert request.body == %{name: "Alice"}
+  end
+
+  test "renderer callbacks can access preserved processed metadata" do
+    TestSupport.with_temp_dir("open-api-renderer", fn output_dir ->
+      TestSupport.with_profile(
+        [
+          renderer: MetadataRenderer,
+          test_pid: self(),
+          output: [
+            base_module: RenderMetadataClient,
+            default_client: Client,
+            location: output_dir
+          ]
+        ],
+        fn profile ->
+          _state = TestSupport.run!(profile, [@docs_fidelity_fixture])
+
+          rendered_files = collect_render_files()
+          operations = Enum.flat_map(rendered_files, &elem(&1, 1))
+          schemas = Enum.flat_map(rendered_files, &elem(&1, 2))
+
+          operation =
+            Enum.find(operations, fn operation ->
+              operation.request_method == :post and operation.request_path == "/widgets"
+            end)
+
+          assert operation.summary == "Create a widget"
+          assert operation.security == [%{"bearerAuth" => ["widgets:write"]}]
+          assert operation.extensions == %{"x-trace-category" => "widget-create"}
+
+          assert operation.request_body_docs == %{
+                   description: "Widget payload.",
+                   required: true,
+                   content_types: ["application/json"]
+                 }
+
+          assert operation.response_docs == [
+                   %{
+                     status: 201,
+                     description: "Widget created.",
+                     content_types: ["application/json"]
+                   }
+                 ]
+
+          schema = Enum.find(schemas, &(&1.title == "Widget"))
+          assert schema.extensions == %{"x-schema-level" => "schema extension"}
+
+          field = Enum.find(schema.fields, &(&1.name == "id"))
+          assert field.external_docs.url == "https://example.com/docs/schemas/widget-id"
+          assert field.extensions == %{"x-field-note" => "field extension"}
+        end
+      )
+    end)
+  end
+
+  defp collect_render_files(acc \\ []) do
+    receive do
+      {:render_file, module, operations, schemas} ->
+        collect_render_files([{module, operations, schemas} | acc])
+    after
+      0 ->
+        Enum.reverse(acc)
+    end
   end
 end
