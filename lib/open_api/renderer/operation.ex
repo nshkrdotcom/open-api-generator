@@ -296,6 +296,7 @@ defmodule OpenAPI.Renderer.Operation do
         def my_operation(path_param, body, opts \\ []) do
           client = opts[:client] || @default_client
           query = Keyword.take(opts, [:query_param])
+          headers = Keyword.take(opts, [:"x-header"])
 
           client.request(%{
             args: [path_param: path_param, body: body],
@@ -304,6 +305,7 @@ defmodule OpenAPI.Renderer.Operation do
             body: body,
             method: :post,
             query: query,
+            headers: headers,
             request: [{"application/json", :map}],
             response: [{200, :map}, {404, {Example.NotFoundError, :t}}],
             opts: opts
@@ -335,9 +337,10 @@ defmodule OpenAPI.Renderer.Operation do
       end
 
     query = render_query(operation)
+    headers = render_headers(operation)
     call = render_call(state, operation)
 
-    operation_body = Util.clean_list([client, query, call])
+    operation_body = Util.clean_list([client, query, headers, call])
 
     quote do
       def unquote(name)(unquote_splicing(arguments)) do
@@ -375,6 +378,34 @@ defmodule OpenAPI.Renderer.Operation do
   end
 
   @doc """
+  Render code to handle header params in the body of an operation function
+
+  This function is called by the default implementation of
+  `c:OpenAPI.Renderer.render_operation_function/2` (see `render_function/2`). It returns code
+  similar to this:
+
+      headers = Keyword.take(opts, [:"x-header"])
+
+  **Warning**: This function is public for the benefit of plugin implementers who wish to
+  replicate portions of the default implementation. It is subject to change.
+  """
+  @spec render_headers(Operation.t()) :: Macro.t() | nil
+  def render_headers(operation) do
+    %Operation{request_header_parameters: header_params} = operation
+
+    if header_params != [] do
+      params =
+        header_params
+        |> Enum.sort_by(& &1.name)
+        |> Enum.map(fn %Param{name: name} -> String.to_atom(name) end)
+
+      quote do
+        headers = Keyword.take(opts, unquote(params))
+      end
+    end
+  end
+
+  @doc """
   Render a call to `client.request/1` in the body of an operation function
 
   This function is called by the default implementation of
@@ -392,6 +423,7 @@ defmodule OpenAPI.Renderer.Operation do
       function_name: function_name,
       module_name: module_name,
       request_body: request_body,
+      request_header_parameters: header_params,
       request_method: request_method,
       request_path_parameters: path_params,
       request_query_parameters: query_params,
@@ -447,6 +479,13 @@ defmodule OpenAPI.Renderer.Operation do
         end
       end
 
+    headers =
+      if header_params != [] do
+        quote do
+          {:headers, headers}
+        end
+      end
+
     request =
       render_call_request_info(state, request_body, config(state)[:operation_call][:request])
 
@@ -474,7 +513,7 @@ defmodule OpenAPI.Renderer.Operation do
       end
 
     request_details =
-      [args, call, url, body, method, query, request, responses, options]
+      [args, call, url, body, method, query, headers, request, responses, options]
       |> Enum.reject(&is_nil/1)
 
     quote do
