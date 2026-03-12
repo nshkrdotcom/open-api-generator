@@ -74,7 +74,11 @@ defmodule OpenAPI.Renderer.Schema do
       schemas
       |> Enum.filter(&(&1.output_format == :struct))
       |> Enum.group_by(&{&1.module_name, &1.type_name})
-      |> Enum.map(fn {_module_and_type, schemas} -> Enum.reduce(schemas, &Schema.merge/2) end)
+      |> Enum.map(fn {_module_and_type, schemas} ->
+        schemas
+        |> Enum.sort_by(&schema_group_sort_key(&1, state.schemas))
+        |> Enum.reduce(&Schema.merge/2)
+      end)
       |> List.flatten()
       |> Enum.sort_by(& &1.type_name)
 
@@ -95,7 +99,11 @@ defmodule OpenAPI.Renderer.Schema do
           false
       end)
       |> Enum.group_by(&{&1.module_name, &1.type_name})
-      |> Enum.map(fn {_module_and_type, schemas} -> Enum.reduce(schemas, &Schema.merge/2) end)
+      |> Enum.map(fn {_module_and_type, schemas} ->
+        schemas
+        |> Enum.sort_by(&schema_group_sort_key(&1, state.schemas))
+        |> Enum.reduce(&Schema.merge/2)
+      end)
       |> List.flatten()
       |> Enum.sort_by(& &1.type_name)
 
@@ -131,6 +139,9 @@ defmodule OpenAPI.Renderer.Schema do
         false
     end
   end
+
+  defp schema_group_sort_key(schema, schemas_by_ref),
+    do: Schema.stable_sort_key(schema, schemas_by_ref)
 
   @doc """
   Render the typespec(s) for all of the given schemas

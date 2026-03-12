@@ -62,7 +62,11 @@ defmodule OpenAPI.Renderer.Operation do
       |> Enum.filter(&(&1.output_format == :typed_map))
       |> filter_related_schemas(state, module)
       |> Enum.group_by(&{&1.module_name, &1.type_name})
-      |> Enum.map(fn {_module_and_type, schemas} -> Enum.reduce(schemas, &Schema.merge/2) end)
+      |> Enum.map(fn {_module_and_type, schemas} ->
+        schemas
+        |> Enum.sort_by(&schema_group_sort_key(&1, state.schemas))
+        |> Enum.reduce(&Schema.merge/2)
+      end)
       |> List.flatten()
       |> group_related_schemas(state)
 
@@ -89,6 +93,9 @@ defmodule OpenAPI.Renderer.Operation do
       to_process
     )
   end
+
+  defp schema_group_sort_key(schema, schemas_by_ref),
+    do: Schema.stable_sort_key(schema, schemas_by_ref)
 
   defp do_filter_related_schemas(
          %{

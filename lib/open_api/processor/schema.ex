@@ -164,6 +164,24 @@ defmodule OpenAPI.Processor.Schema do
     %__MODULE__{schema | output_format: format}
   end
 
+  @doc false
+  @spec stable_sort_key(t(), %{optional(reference()) => t()}) :: term()
+  def stable_sort_key(%__MODULE__{} = schema, schemas_by_ref \\ %{}) do
+    normalize_schema(schema, schemas_by_ref, MapSet.new())
+  end
+
+  @doc false
+  @spec stable_label(t(), %{optional(reference()) => t()}) :: String.t()
+  def stable_label(%__MODULE__{} = schema, schemas_by_ref \\ %{}) do
+    [
+      module_name_string(schema.module_name) || "anonymous_schema",
+      atom_to_string(schema.type_name) || "anonymous_type",
+      atom_to_string(schema.output_format) || "none",
+      stable_hash(schema, schemas_by_ref)
+    ]
+    |> Enum.join(".")
+  end
+
   @spec merge_field(String.t(), Field.t(), Field.t()) :: Field.t()
   defp merge_field(name, field_a, field_b) do
     %Field{
@@ -193,4 +211,105 @@ defmodule OpenAPI.Processor.Schema do
   @spec first_non_nil(term, term) :: term
   defp first_non_nil(nil, fallback), do: fallback
   defp first_non_nil(value, _fallback), do: value
+
+  defp stable_hash(schema, schemas_by_ref) do
+    schema
+    |> stable_sort_key(schemas_by_ref)
+    |> :erlang.term_to_binary()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+    |> binary_part(0, 12)
+  end
+
+  defp normalize_schema(%__MODULE__{} = schema, schemas_by_ref, seen) do
+    seen =
+      case schema.ref do
+        ref when is_reference(ref) -> MapSet.put(seen, ref)
+        _other -> seen
+      end
+
+    [
+      module_name: module_name_string(schema.module_name),
+      type_name: atom_to_string(schema.type_name),
+      output_format: atom_to_string(schema.output_format),
+      title: schema.title,
+      description: schema.description,
+      context:
+        schema.context
+        |> Enum.map(&normalize_term(&1, schemas_by_ref, seen))
+        |> Enum.sort(),
+      fields:
+        schema.fields
+        |> Enum.map(&normalize_field(&1, schemas_by_ref, seen))
+        |> Enum.sort()
+    ]
+  end
+
+  defp normalize_field(%Field{} = field, schemas_by_ref, seen) do
+    [
+      name: field.name,
+      type: normalize_term(field.type, schemas_by_ref, seen),
+      required: field.required,
+      nullable: field.nullable,
+      private: field.private,
+      read_only: field.read_only,
+      write_only: field.write_only
+    ]
+  end
+
+  defp normalize_term(reference, schemas_by_ref, seen) when is_reference(reference) do
+    case Map.get(schemas_by_ref, reference) do
+      %__MODULE__{} = schema ->
+        if MapSet.member?(seen, reference),
+          do: {:schema_ref, shallow_identity(schema)},
+          else: {:schema_ref, shallow_identity(schema)}
+
+      nil ->
+        {:schema_ref, "missing"}
+    end
+  end
+
+  defp normalize_term(%Field{} = field, schemas_by_ref, seen),
+    do: normalize_field(field, schemas_by_ref, seen)
+
+  defp normalize_term(%_{} = struct, schemas_by_ref, seen),
+    do: struct |> Map.from_struct() |> normalize_term(schemas_by_ref, seen)
+
+  defp normalize_term(map, schemas_by_ref, seen) when is_map(map) do
+    map
+    |> Enum.map(fn {key, value} ->
+      {normalize_term(key, schemas_by_ref, seen), normalize_term(value, schemas_by_ref, seen)}
+    end)
+    |> Enum.sort()
+  end
+
+  defp normalize_term(tuple, schemas_by_ref, seen) when is_tuple(tuple) do
+    tuple
+    |> Tuple.to_list()
+    |> Enum.map(&normalize_term(&1, schemas_by_ref, seen))
+    |> List.to_tuple()
+  end
+
+  defp normalize_term(list, schemas_by_ref, seen) when is_list(list),
+    do: Enum.map(list, &normalize_term(&1, schemas_by_ref, seen))
+
+  defp normalize_term(atom, _schemas_by_ref, _seen) when is_atom(atom), do: Atom.to_string(atom)
+  defp normalize_term(value, _schemas_by_ref, _seen), do: value
+
+  defp shallow_identity(%__MODULE__{} = schema) do
+    [
+      module_name: module_name_string(schema.module_name),
+      type_name: atom_to_string(schema.type_name),
+      output_format: atom_to_string(schema.output_format),
+      title: schema.title,
+      description: schema.description,
+      field_names: schema.fields |> Enum.map(& &1.name) |> Enum.sort()
+    ]
+  end
+
+  defp module_name_string(nil), do: nil
+  defp module_name_string(module_name) when is_atom(module_name), do: inspect(module_name)
+
+  defp atom_to_string(nil), do: nil
+  defp atom_to_string(atom) when is_atom(atom), do: Atom.to_string(atom)
 end

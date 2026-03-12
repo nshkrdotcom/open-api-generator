@@ -208,17 +208,7 @@ defmodule OpenAPI.Processor.Type do
         {state, [type | types]}
       end)
 
-    types =
-      types
-      |> Enum.uniq()
-      |> Enum.sort()
-      |> case do
-        [] -> :null
-        [:null] -> :null
-        types -> {:union, types}
-      end
-
-    {state, types}
+    {state, normalize_union(types)}
   end
 
   @spec reduce(t, acc, (t, acc -> acc)) :: acc when acc: any
@@ -235,25 +225,27 @@ defmodule OpenAPI.Processor.Type do
   def merge({:enum, values}, {:const, value}), do: {:enum, Enum.sort([value | values])}
   def merge({:const, value}, {:enum, values}), do: {:enum, Enum.sort([value | values])}
   def merge({:enum, values_a}, {:enum, values_b}), do: {:enum, Enum.sort(values_a ++ values_b)}
-
-  def merge({:union, types_a}, {:union, types_b}) do
-    types =
-      (types_a ++ types_b)
-      |> Enum.uniq()
-      |> Enum.sort()
-
-    {:union, types}
-  end
+  def merge({:union, types_a}, {:union, types_b}), do: normalize_union(types_a ++ types_b)
+  def merge({:union, types}, type), do: normalize_union([type | types])
+  def merge(type, {:union, types}), do: normalize_union([type | types])
 
   def merge(type_a, type_b) do
-    [type_a, type_b]
+    normalize_union([type_a, type_b])
+  end
+
+  defp normalize_union(types) do
+    types
+    |> Enum.flat_map(fn
+      {:union, nested_types} -> nested_types
+      type -> [type]
+    end)
     |> Enum.uniq()
     |> Enum.sort()
     |> case do
       [] -> :null
       [:null] -> :null
       [type] -> type
-      types -> {:union, types}
+      normalized_types -> {:union, normalized_types}
     end
   end
 end
