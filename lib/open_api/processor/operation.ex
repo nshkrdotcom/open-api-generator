@@ -80,7 +80,8 @@ defmodule OpenAPI.Processor.Operation do
       ## Options
 
         * `param`: query parameter description
-        * `x-header` (header): header parameter description
+        * `required-query` (required): required query parameter description
+        * `x-header` (header, required): required header parameter description
 
       ## Request Body
 
@@ -136,19 +137,43 @@ defmodule OpenAPI.Processor.Operation do
     end <> "\n"
   end
 
-  defp format_param_doc(%Param{name: name, location: location, description: nil}) do
-    "  * #{format_param_name(name, location)}\n"
+  defp format_param_doc(%Param{
+         name: name,
+         location: location,
+         required: required?,
+         description: nil
+       }) do
+    "  * #{format_param_name(name, location, required?)}\n"
   end
 
-  defp format_param_doc(%Param{name: name, location: location, description: description}) do
+  defp format_param_doc(%Param{
+         name: name,
+         location: location,
+         required: required?,
+         description: description
+       }) do
     description = String.replace(description, "\n", "\n    ")
-    "  * #{format_param_name(name, location)}: #{description}\n"
+    "  * #{format_param_name(name, location, required?)}: #{description}\n"
   end
 
-  defp format_param_name(name, location) when location in [:header, :cookie],
-    do: "`#{name}` (#{location})"
+  defp format_param_name(name, location, required?) do
+    details =
+      []
+      |> maybe_append(location_label(location))
+      |> maybe_append(if(required?, do: "required"))
 
-  defp format_param_name(name, _location), do: "`#{name}`"
+    if details == [] do
+      "`#{name}`"
+    else
+      "`#{name}` (#{Enum.join(details, ", ")})"
+    end
+  end
+
+  defp location_label(location) when location in [:header, :cookie], do: to_string(location)
+  defp location_label(_location), do: nil
+
+  defp maybe_append(items, nil), do: items
+  defp maybe_append(items, item), do: items ++ [item]
 
   @spec docstring_body_params(RequestBodySpec.t() | nil) :: String.t() | nil
   defp docstring_body_params(nil), do: nil

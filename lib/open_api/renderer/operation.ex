@@ -296,6 +296,8 @@ defmodule OpenAPI.Renderer.Operation do
         def my_operation(path_param, body, opts \\ []) do
           client = opts[:client] || @default_client
           query = Keyword.take(opts, [:query_param])
+          headers = Keyword.take(opts, [:"x-header"])
+          cookies = Keyword.take(opts, [:session])
 
           client.request(%{
             args: [path_param: path_param, body: body],
@@ -304,11 +306,17 @@ defmodule OpenAPI.Renderer.Operation do
             body: body,
             method: :post,
             query: query,
+            headers: headers,
+            cookies: cookies,
             request: [{"application/json", :map}],
             response: [{200, :map}, {404, {Example.NotFoundError, :t}}],
             opts: opts
           })
         end
+
+  If an operation has one or more required query, header, or cookie params, the generated
+  function requires the `opts` argument and validates that the required keys are present before
+  calling the configured client module.
 
   """
   @spec render_function(State.t(), Operation.t()) :: Macro.t()
@@ -325,7 +333,7 @@ defmodule OpenAPI.Renderer.Operation do
       end
 
     body_argument = unless request_body == [], do: quote(do: body)
-    opts_argument = quote do: opts \\ []
+    opts_argument = render_opts_argument(operation)
 
     arguments = Util.clean_list([path_parameter_arguments, body_argument, opts_argument])
 
@@ -334,12 +342,13 @@ defmodule OpenAPI.Renderer.Operation do
         client = opts[:client] || @default_client
       end
 
+    required_options = render_required_options(operation)
     query = render_query(operation)
     headers = render_headers(operation)
     cookies = render_cookies(operation)
     call = render_call(state, operation)
 
-    operation_body = Util.clean_list([client, query, headers, cookies, call])
+    operation_body = Util.clean_list([client, required_options, query, headers, cookies, call])
 
     quote do
       def unquote(name)(unquote_splicing(arguments)) do
@@ -641,9 +650,11 @@ defmodule OpenAPI.Renderer.Operation do
   Use `output.types.specs` to modify the format of the output specs. Possible values are:
 
     * `:spec`: A single `@spec` including the `opts` argument (default)
-    * `:spec_comprehensive`: Two `@spec`s, one with and one without the `opts` argument
+    * `:spec_comprehensive`: Two `@spec`s, one with and one without the `opts` argument when
+      `opts` are optional
     * `:callback`: A single `@callback` including the `opts` argument
     * `:callback_comprehensive`: Two `@callback`s, one with and one without the `opts` argument
+      when `opts` are optional
     * `false`: Disables output of specs entirely
 
   For example, the following configuration will output two `@spec`s for every operation:
@@ -687,40 +698,51 @@ defmodule OpenAPI.Renderer.Operation do
     arguments = path_parameters ++ if(request_body, do: [request_body], else: [])
     arguments_with_opts = arguments ++ [opts]
     return_type = render_return_type(state, responses)
+    opts_optional? = required_option_params(operation) == []
+    spec_mode = config(state)[:types][:specs]
 
-    cond do
-      config(state)[:types][:specs] == false ->
-        []
+    render_spec_annotations(
+      spec_mode,
+      name,
+      arguments,
+      arguments_with_opts,
+      return_type,
+      opts_optional?
+    )
+  end
 
-      config(state)[:types][:specs] == :callback ->
+  defp render_opts_argument(operation) do
+    if required_option_params(operation) == [] do
+      quote(do: opts \\ [])
+    else
+      quote(do: opts)
+    end
+  end
+
+  defp render_required_options(operation) do
+    operation
+    |> required_option_params()
+    |> Enum.map(&render_required_option_check/1)
+    |> case do
+      [] ->
+        nil
+
+      statements ->
         quote do
-          @callback unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
+          (unquote_splicing(statements))
         end
+    end
+  end
 
-      config(state)[:types][:specs] == :callback_comprehensive ->
-        [
-          quote do
-            @callback unquote(name)(unquote_splicing(arguments)) :: unquote(return_type)
-          end,
-          quote do
-            @callback unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
-          end
-        ]
+  defp render_required_option_check(%Param{name: name, location: location}) do
+    key = String.to_atom(name)
+    message = "missing required #{location} option `#{name}`"
 
-      config(state)[:types][:specs] == :spec_comprehensive ->
-        [
-          quote do
-            @spec unquote(name)(unquote_splicing(arguments)) :: unquote(return_type)
-          end,
-          quote do
-            @spec unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
-          end
-        ]
-
-      :else ->
-        quote do
-          @spec unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
-        end
+    quote do
+      case Keyword.fetch(opts, unquote(key)) do
+        {:ok, _value} -> :ok
+        :error -> raise ArgumentError, unquote(message)
+      end
     end
   end
 
@@ -786,6 +808,131 @@ defmodule OpenAPI.Renderer.Operation do
       true ->
         quote(do: :error)
     end
+  end
+
+  defp required_option_params(operation) do
+    operation
+    |> option_params()
+    |> Enum.filter(& &1.required)
+  end
+
+  defp option_params(%Operation{
+         request_cookie_parameters: cookie_params,
+         request_header_parameters: header_params,
+         request_query_parameters: query_params
+       }) do
+    query_params ++ header_params ++ cookie_params
+  end
+
+  defp render_spec_annotations(
+         false,
+         _name,
+         _arguments,
+         _arguments_with_opts,
+         _return_type,
+         _opts_optional?
+       ) do
+    []
+  end
+
+  defp render_spec_annotations(
+         :callback,
+         name,
+         _arguments,
+         arguments_with_opts,
+         return_type,
+         _opts_optional?
+       ) do
+    single_callback(name, arguments_with_opts, return_type)
+  end
+
+  defp render_spec_annotations(
+         :callback_comprehensive,
+         name,
+         arguments,
+         arguments_with_opts,
+         return_type,
+         true
+       ) do
+    comprehensive_callback(name, arguments, arguments_with_opts, return_type)
+  end
+
+  defp render_spec_annotations(
+         :callback_comprehensive,
+         name,
+         _arguments,
+         arguments_with_opts,
+         return_type,
+         false
+       ) do
+    single_callback(name, arguments_with_opts, return_type)
+  end
+
+  defp render_spec_annotations(
+         :spec_comprehensive,
+         name,
+         arguments,
+         arguments_with_opts,
+         return_type,
+         true
+       ) do
+    comprehensive_spec(name, arguments, arguments_with_opts, return_type)
+  end
+
+  defp render_spec_annotations(
+         :spec_comprehensive,
+         name,
+         _arguments,
+         arguments_with_opts,
+         return_type,
+         false
+       ) do
+    single_spec(name, arguments_with_opts, return_type)
+  end
+
+  defp render_spec_annotations(
+         _spec_mode,
+         name,
+         _arguments,
+         arguments_with_opts,
+         return_type,
+         _opts_optional?
+       ) do
+    single_spec(name, arguments_with_opts, return_type)
+  end
+
+  defp single_callback(name, arguments_with_opts, return_type) do
+    quote do
+      @callback unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
+    end
+  end
+
+  defp comprehensive_callback(name, arguments, arguments_with_opts, return_type) do
+    [
+      quote do
+        @callback unquote(name)(unquote_splicing(arguments)) :: unquote(return_type)
+      end,
+      quote do
+        @callback unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
+      end
+    ]
+  end
+
+  defp single_spec(name, arguments_with_opts, return_type) do
+    quote do
+      @spec unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
+    end
+  end
+
+  defp comprehensive_spec(name, arguments, arguments_with_opts, return_type) do
+    [
+      quote do
+        @spec unquote(name)(unquote_splicing(arguments)) :: unquote(return_type)
+      end,
+      quote do
+        @spec unquote(name)(unquote_splicing(arguments_with_opts)) :: unquote(return_type)
+      end
+    ]
   end
 
   #

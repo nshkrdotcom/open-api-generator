@@ -66,6 +66,8 @@ defmodule Example.Operations do
   def my_operation(path_param, body, opts \\ []) do
     client = opts[:client] || @default_client
     query = Keyword.take(opts, [:query_param])
+    headers = Keyword.take(opts, [:"x-header"])
+    cookies = Keyword.take(opts, [:session])
 
     client.request(%{
       args: [path_param: path_param, body: body],
@@ -74,6 +76,8 @@ defmodule Example.Operations do
       body: body,
       method: :post,
       query: query,
+      headers: headers,
+      cookies: cookies,
       request: [{"application/json", :map}],
       response: [{200, :map}, {404, {Example.NotFoundError, :t}}],
       opts: opts
@@ -85,6 +89,8 @@ end
 The default renderer exposes non-path request parameters through `opts`. Query parameters are
 collected into `query`, header parameters into `headers`, and cookie parameters into `cookies`
 before calling the configured client module.
+If any of those params are required by the OpenAPI description, the generated function requires
+an explicit `opts` argument and validates the required keys before calling `client.request/1`.
 
 Below are some of the highlights from the available configuration.
 See the **Option Reference** section for an exhaustive list of the available options.

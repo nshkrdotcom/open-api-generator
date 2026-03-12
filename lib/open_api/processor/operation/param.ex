@@ -19,6 +19,7 @@ defmodule OpenAPI.Processor.Operation.Param do
           explode: boolean,
           location: location,
           name: String.t(),
+          required: boolean,
           style: style,
           value_type: Type.t()
         }
@@ -28,6 +29,7 @@ defmodule OpenAPI.Processor.Operation.Param do
     :explode,
     :name,
     :location,
+    :required,
     :style,
     :value_type
   ]
@@ -35,7 +37,7 @@ defmodule OpenAPI.Processor.Operation.Param do
   @doc false
   @spec from_spec(State.t(), Parameter.t()) :: {State.t(), t}
   def from_spec(state, %Parameter{} = param) do
-    %Parameter{description: description, explode: explode, name: name} = param
+    %Parameter{description: description, explode: explode, name: name, required: required} = param
     {state, value_type} = value_type(state, param)
 
     param =
@@ -44,6 +46,7 @@ defmodule OpenAPI.Processor.Operation.Param do
         explode: explode,
         name: name,
         location: location(param),
+        required: required,
         style: style(param),
         value_type: value_type
       }

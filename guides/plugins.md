@@ -127,3 +127,9 @@ Below is a list of all available callbacks in order of their use, along with the
 
 Each callback represents an opportunity for client library authors to inject their own logic into the code generator.
 If popular overrides are discovered, they may be added to the default implementation as well.
+
+When overriding `c:OpenAPI.Processor.operation_docstring/3`, note that the third argument
+contains all non-path option params exposed through the generated `opts` argument, not just query
+params.
+Each `%OpenAPI.Processor.Operation.Param{}` also includes `location` and `required` metadata so
+custom processors can distinguish required query params from required headers and cookies.

@@ -140,7 +140,8 @@ defmodule OpenAPI.Processor do
 
   This function accepts the operation spec as well as a list of the **processed** request option
   params associated with the operation. These are the parameters exposed through the generated
-  `opts` argument, such as query, header, and cookie params.
+  `opts` argument, such as query, header, and cookie params. Each processed param includes
+  metadata such as its location, type, and whether it is required by the OpenAPI description.
 
   See `OpenAPI.Processor.Operation.docstring/3` for the default implementation.
   """

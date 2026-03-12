@@ -87,7 +87,7 @@ defmodule OpenAPI.Processor.OperationTest do
                """
     end
 
-    test "creates a docstring with header params in options" do
+    test "creates a docstring with required option params in options" do
       operation = %OpSpec{
         "$oag_path": "/",
         "$oag_path_method": "POST",
@@ -98,9 +98,22 @@ defmodule OpenAPI.Processor.OperationTest do
 
       option_params = [
         %Param{
+          description: "Page number",
+          name: "page",
+          required: true,
+          value_type: :integer
+        },
+        %Param{
           description: "Override the submitted name",
           location: :header,
           name: "x-override-name",
+          required: true,
+          value_type: :string
+        },
+        %Param{
+          description: "Session token",
+          location: :cookie,
+          name: "session-token",
           value_type: :string
         }
       ]
@@ -111,7 +124,9 @@ defmodule OpenAPI.Processor.OperationTest do
 
                ## Options
 
-                 * `x-override-name` (header): Override the submitted name
+                 * `page` (required): Page number
+                 * `x-override-name` (header, required): Override the submitted name
+                 * `session-token` (cookie): Session token
 
                """
     end

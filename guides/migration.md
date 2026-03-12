@@ -2,6 +2,17 @@
 
 This document assists in the migration across breaking changes of the library.
 
+## Unreleased
+
+Operations now treat all non-path params as first-class `opts` entries.
+This means:
+
+* `c:OpenAPI.Processor.operation_docstring/3` now receives query, header, and cookie params
+  together.
+* `%OpenAPI.Processor.Operation.Param{}` now preserves whether a param is required.
+* Generated functions require an explicit `opts` argument when the OpenAPI operation has required
+  query, header, or cookie params.
+
 ## 0.0.x to 0.1.0
 
 This version change represents a major rewrite of the core logic of the library.

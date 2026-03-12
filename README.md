@@ -97,6 +97,10 @@ mix api.gen default path/to/rest-api-description/spec.yaml
 
 By default, all of the operation functions end in a call to `client.request/1`, where `client` is a module passed in as an option **or** a default module (set using the `output.default_client` configuration).
 As a library author, you create this module and define the `request/1` function.
+The generated request payload includes `query`, `headers`, and `cookies` entries when those
+non-path parameters are defined in the OpenAPI operation.
+If any non-path params are required, the generated function also requires an explicit `opts`
+argument and validates the required keys before it calls `client.request/1`.
 You can use any HTTP client and handle errors in whatever way best suits your project.
 
 ## Further Reading
