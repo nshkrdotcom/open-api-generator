@@ -167,7 +167,7 @@ defmodule OpenAPI.Processor.Schema do
   @doc false
   @spec stable_sort_key(t(), %{optional(reference()) => t()}) :: term()
   def stable_sort_key(%__MODULE__{} = schema, schemas_by_ref \\ %{}) do
-    normalize_schema(schema, schemas_by_ref, MapSet.new())
+    normalize_schema(schema, schemas_by_ref)
   end
 
   @doc false
@@ -221,13 +221,7 @@ defmodule OpenAPI.Processor.Schema do
     |> binary_part(0, 12)
   end
 
-  defp normalize_schema(%__MODULE__{} = schema, schemas_by_ref, seen) do
-    seen =
-      case schema.ref do
-        ref when is_reference(ref) -> MapSet.put(seen, ref)
-        _other -> seen
-      end
-
+  defp normalize_schema(%__MODULE__{} = schema, schemas_by_ref) do
     [
       module_name: module_name_string(schema.module_name),
       type_name: atom_to_string(schema.type_name),
@@ -236,19 +230,19 @@ defmodule OpenAPI.Processor.Schema do
       description: schema.description,
       context:
         schema.context
-        |> Enum.map(&normalize_term(&1, schemas_by_ref, seen))
+        |> Enum.map(&normalize_term(&1, schemas_by_ref))
         |> Enum.sort(),
       fields:
         schema.fields
-        |> Enum.map(&normalize_field(&1, schemas_by_ref, seen))
+        |> Enum.map(&normalize_field(&1, schemas_by_ref))
         |> Enum.sort()
     ]
   end
 
-  defp normalize_field(%Field{} = field, schemas_by_ref, seen) do
+  defp normalize_field(%Field{} = field, schemas_by_ref) do
     [
       name: field.name,
-      type: normalize_term(field.type, schemas_by_ref, seen),
+      type: normalize_term(field.type, schemas_by_ref),
       required: field.required,
       nullable: field.nullable,
       private: field.private,
@@ -257,44 +251,42 @@ defmodule OpenAPI.Processor.Schema do
     ]
   end
 
-  defp normalize_term(reference, schemas_by_ref, seen) when is_reference(reference) do
+  defp normalize_term(reference, schemas_by_ref) when is_reference(reference) do
     case Map.get(schemas_by_ref, reference) do
       %__MODULE__{} = schema ->
-        if MapSet.member?(seen, reference),
-          do: {:schema_ref, shallow_identity(schema)},
-          else: {:schema_ref, shallow_identity(schema)}
+        {:schema_ref, shallow_identity(schema)}
 
       nil ->
         {:schema_ref, "missing"}
     end
   end
 
-  defp normalize_term(%Field{} = field, schemas_by_ref, seen),
-    do: normalize_field(field, schemas_by_ref, seen)
+  defp normalize_term(%Field{} = field, schemas_by_ref),
+    do: normalize_field(field, schemas_by_ref)
 
-  defp normalize_term(%_{} = struct, schemas_by_ref, seen),
-    do: struct |> Map.from_struct() |> normalize_term(schemas_by_ref, seen)
+  defp normalize_term(%_{} = struct, schemas_by_ref),
+    do: struct |> Map.from_struct() |> normalize_term(schemas_by_ref)
 
-  defp normalize_term(map, schemas_by_ref, seen) when is_map(map) do
+  defp normalize_term(map, schemas_by_ref) when is_map(map) do
     map
     |> Enum.map(fn {key, value} ->
-      {normalize_term(key, schemas_by_ref, seen), normalize_term(value, schemas_by_ref, seen)}
+      {normalize_term(key, schemas_by_ref), normalize_term(value, schemas_by_ref)}
     end)
     |> Enum.sort()
   end
 
-  defp normalize_term(tuple, schemas_by_ref, seen) when is_tuple(tuple) do
+  defp normalize_term(tuple, schemas_by_ref) when is_tuple(tuple) do
     tuple
     |> Tuple.to_list()
-    |> Enum.map(&normalize_term(&1, schemas_by_ref, seen))
+    |> Enum.map(&normalize_term(&1, schemas_by_ref))
     |> List.to_tuple()
   end
 
-  defp normalize_term(list, schemas_by_ref, seen) when is_list(list),
-    do: Enum.map(list, &normalize_term(&1, schemas_by_ref, seen))
+  defp normalize_term(list, schemas_by_ref) when is_list(list),
+    do: Enum.map(list, &normalize_term(&1, schemas_by_ref))
 
-  defp normalize_term(atom, _schemas_by_ref, _seen) when is_atom(atom), do: Atom.to_string(atom)
-  defp normalize_term(value, _schemas_by_ref, _seen), do: value
+  defp normalize_term(atom, _schemas_by_ref) when is_atom(atom), do: Atom.to_string(atom)
+  defp normalize_term(value, _schemas_by_ref), do: value
 
   defp shallow_identity(%__MODULE__{} = schema) do
     [
