@@ -82,6 +82,10 @@ defmodule Example.Operations do
 end
 ```
 
+The default renderer exposes non-path request parameters through `opts`. Query parameters are
+collected into `query`, header parameters into `headers`, and cookie parameters into `cookies`
+before calling the configured client module.
+
 Below are some of the highlights from the available configuration.
 See the **Option Reference** section for an exhaustive list of the available options.
 

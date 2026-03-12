@@ -87,6 +87,35 @@ defmodule OpenAPI.Processor.OperationTest do
                """
     end
 
+    test "creates a docstring with header params in options" do
+      operation = %OpSpec{
+        "$oag_path": "/",
+        "$oag_path_method": "POST",
+        description: nil,
+        external_docs: nil,
+        summary: "Does stuff"
+      }
+
+      option_params = [
+        %Param{
+          description: "Override the submitted name",
+          location: :header,
+          name: "x-override-name",
+          value_type: :string
+        }
+      ]
+
+      assert Operation.docstring(nil, operation, option_params) ==
+               """
+               Does stuff
+
+               ## Options
+
+                 * `x-override-name` (header): Override the submitted name
+
+               """
+    end
+
     test "creates a docstring with everything" do
       operation = %OpSpec{
         "$oag_path": "/",

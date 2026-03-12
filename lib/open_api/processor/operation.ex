@@ -38,6 +38,8 @@ defmodule OpenAPI.Processor.Operation do
           request_body: request_body,
           request_method: atom,
           request_path: String.t(),
+          request_cookie_parameters: [Param.t()],
+          request_header_parameters: [Param.t()],
           request_path_parameters: [Param.t()],
           request_query_parameters: [Param.t()],
           responses: response_body
@@ -50,6 +52,8 @@ defmodule OpenAPI.Processor.Operation do
     :request_body,
     :request_method,
     :request_path,
+    :request_cookie_parameters,
+    :request_header_parameters,
     :request_path_parameters,
     :request_query_parameters,
     :responses
@@ -64,9 +68,9 @@ defmodule OpenAPI.Processor.Operation do
   summary (if available) or the request method and path otherwise. It will incorporate the
   operation description (if available) and link to any included external documentation.
 
-  If the operation has query parameters, they are documented in an "Options" section as they
-  are part of the `opts` argument. If the operation has a request body, it's documented in a
-  "Request Body" section with content types and description.
+  If the operation has query, header, or cookie parameters, they are documented in an "Options"
+  section as they are part of the `opts` argument. If the operation has a request body, it's
+  documented in a "Request Body" section with content types and description.
 
       @doc \"\"\"
       Summary of the operation or method and path
@@ -76,6 +80,7 @@ defmodule OpenAPI.Processor.Operation do
       ## Options
 
         * `param`: query parameter description
+        * `x-header` (header): header parameter description
 
       ## Request Body
 
@@ -91,7 +96,7 @@ defmodule OpenAPI.Processor.Operation do
   """
   @doc default_implementation: true
   @spec docstring(State.t(), OperationSpec.t(), [Param.t()]) :: String.t()
-  def docstring(_state, operation, query_params) do
+  def docstring(_state, operation, option_params) do
     %OperationSpec{
       "$oag_path": request_path,
       "$oag_path_method": request_method,
@@ -103,7 +108,7 @@ defmodule OpenAPI.Processor.Operation do
 
     summary = docstring_summary(summary, request_method, request_path)
     description = if description not in [nil, ""], do: "\n#{description}\n"
-    options = docstring_options(query_params)
+    options = docstring_options(option_params)
     body_params = docstring_body_params(request_body)
     resources = docstring_resources(external_docs)
 
@@ -124,19 +129,26 @@ defmodule OpenAPI.Processor.Operation do
   @spec docstring_options([Param.t()]) :: String.t() | nil
   defp docstring_options([]), do: nil
 
-  defp docstring_options(query_params) do
-    for %Param{description: description, name: name} <- query_params,
+  defp docstring_options(option_params) do
+    for %Param{} = param <- option_params,
         into: "\n## Options\n\n" do
-      format_param_doc(name, description)
+      format_param_doc(param)
     end <> "\n"
   end
 
-  defp format_param_doc(name, nil), do: "  * `#{name}`\n"
-
-  defp format_param_doc(name, description) do
-    description = String.replace(description, "\n", "\n    ")
-    "  * `#{name}`: #{description}\n"
+  defp format_param_doc(%Param{name: name, location: location, description: nil}) do
+    "  * #{format_param_name(name, location)}\n"
   end
+
+  defp format_param_doc(%Param{name: name, location: location, description: description}) do
+    description = String.replace(description, "\n", "\n    ")
+    "  * #{format_param_name(name, location)}: #{description}\n"
+  end
+
+  defp format_param_name(name, location) when location in [:header, :cookie],
+    do: "`#{name}` (#{location})"
+
+  defp format_param_name(name, _location), do: "`#{name}`"
 
   @spec docstring_body_params(RequestBodySpec.t() | nil) :: String.t() | nil
   defp docstring_body_params(nil), do: nil

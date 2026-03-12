@@ -138,15 +138,16 @@ defmodule OpenAPI.Processor do
   @doc """
   Construct a docstring for the given operation
 
-  This function accepts the operation spec as well as a list of the **processed** query params
-  associated with the operation.
+  This function accepts the operation spec as well as a list of the **processed** request option
+  params associated with the operation. These are the parameters exposed through the generated
+  `opts` argument, such as query, header, and cookie params.
 
   See `OpenAPI.Processor.Operation.docstring/3` for the default implementation.
   """
   @callback operation_docstring(
               state :: State.t(),
               operation_spec :: OperationSpec.t(),
-              query_params :: [Param.t()]
+              option_params :: [Param.t()]
             ) :: String.t()
 
   @doc """
@@ -330,9 +331,12 @@ defmodule OpenAPI.Processor do
       end)
 
     path_params = Enum.filter(all_params, &(&1.location == :path))
-    query_params = Enum.filter(all_params, &(&1.location == :query))
+    option_params = Enum.reject(all_params, &(&1.location == :path))
+    query_params = Enum.filter(option_params, &(&1.location == :query))
+    header_params = Enum.filter(option_params, &(&1.location == :header))
+    cookie_params = Enum.filter(option_params, &(&1.location == :cookie))
 
-    docstring = implementation.operation_docstring(state, operation_spec, query_params)
+    docstring = implementation.operation_docstring(state, operation_spec, option_params)
     module_names = implementation.operation_module_names(state, operation_spec)
     request_method = implementation.operation_request_method(state, operation_spec)
 
@@ -355,6 +359,8 @@ defmodule OpenAPI.Processor do
           request_body: request_body,
           request_method: request_method,
           request_path: request_path,
+          request_cookie_parameters: cookie_params,
+          request_header_parameters: header_params,
           request_path_parameters: path_params,
           request_query_parameters: query_params,
           responses: response_body
