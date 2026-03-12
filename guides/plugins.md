@@ -21,8 +21,8 @@ Through all three phases, the library uses an `OpenAPI.State` struct to keep tra
 Each phase also implements its own "state" struct, with intermediate data useful for that phase.
 
 The processed structs exposed to renderer callbacks preserve more than routing and types.
-Custom plugins can read security requirements, generic `x-*` extensions, structured operation
-request/response docs, and schema/field documentation metadata directly from
+Custom plugins can read effective operation security requirements, generic `x-*` extensions,
+structured operation request/response docs, and schema/field documentation metadata directly from
 `OpenAPI.State.operations` and `OpenAPI.State.schemas` without re-reading the raw spec files.
 
 ## Behaviours

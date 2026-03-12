@@ -33,12 +33,18 @@ defmodule OpenAPITest do
                 operation.request_path == "/widgets/{widget_id}"
             end)
 
+          inherited_security_operation =
+            Enum.find(state.operations, fn operation ->
+              operation.request_method == :get and operation.request_path == "/health"
+            end)
+
           assert operation.summary == "Retrieve a widget"
           assert operation.description == "Returns a single widget."
           assert operation.deprecated
           assert operation.tags == ["Widgets"]
           assert operation.security == []
           assert operation.extensions == %{"x-trace-category" => "widgets"}
+          assert inherited_security_operation.security == [%{"bearerAuth" => []}]
 
           assert Enum.any?(operation.response_docs, fn response ->
                    response.status == 200 and

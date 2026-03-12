@@ -338,6 +338,7 @@ defmodule OpenAPI.Processor do
     request_method = implementation.operation_request_method(state, operation_spec)
     request_body_docs = Operation.request_body_docs(operation_spec.request_body)
     response_docs = Operation.response_docs(operation_spec)
+    security = operation_security(state, operation_spec)
 
     for module_name <- module_names, reduce: state do
       state ->
@@ -368,7 +369,7 @@ defmodule OpenAPI.Processor do
           request_query_parameters: query_params,
           response_docs: response_docs,
           responses: response_body,
-          security: operation_spec.security,
+          security: security,
           tags: operation_spec.tags,
           extensions: operation_spec.extensions
         }
@@ -507,19 +508,19 @@ defmodule OpenAPI.Processor do
 
     field = %Field{
       default: default,
-      description: field_description(field_spec),
-      deprecated: field_deprecated(field_spec),
-      example: field_example(field_spec),
-      examples: field_examples(field_spec),
-      external_docs: field_external_docs(field_spec),
-      extensions: field_extensions(field_spec),
+      description: field_description(state, field_spec),
+      deprecated: field_deprecated(state, field_spec),
+      example: field_example(state, field_spec),
+      examples: field_examples(state, field_spec),
+      external_docs: field_external_docs(state, field_spec),
+      extensions: field_extensions(state, field_spec),
       name: field_name,
       nullable: nullable?,
       private: false,
-      read_only: field_read_only(field_spec),
+      read_only: field_read_only(state, field_spec),
       required: required?,
       type: type,
-      write_only: field_write_only(field_spec)
+      write_only: field_write_only(state, field_spec)
     }
 
     {state, field}
@@ -528,32 +529,40 @@ defmodule OpenAPI.Processor do
   defp field_default(%SchemaSpec{default: default}), do: default
   defp field_default({:ref, _}), do: nil
 
-  defp field_description(%SchemaSpec{description: description}), do: description
-  defp field_description({:ref, _}), do: nil
+  defp field_description(state, field_spec), do: field_schema_spec(state, field_spec).description
 
-  defp field_deprecated(%SchemaSpec{deprecated: deprecated}), do: deprecated
-  defp field_deprecated({:ref, _}), do: false
+  defp field_deprecated(state, field_spec), do: field_schema_spec(state, field_spec).deprecated
 
-  defp field_example(%SchemaSpec{example: example}), do: example
-  defp field_example({:ref, _}), do: nil
+  defp field_example(state, field_spec), do: field_schema_spec(state, field_spec).example
 
-  defp field_examples(%SchemaSpec{examples: examples}), do: examples
-  defp field_examples({:ref, _}), do: nil
+  defp field_examples(state, field_spec), do: field_schema_spec(state, field_spec).examples
 
-  defp field_external_docs(%SchemaSpec{external_docs: external_docs}), do: external_docs
-  defp field_external_docs({:ref, _}), do: nil
+  defp field_external_docs(state, field_spec),
+    do: field_schema_spec(state, field_spec).external_docs
 
-  defp field_extensions(%SchemaSpec{extensions: extensions}), do: extensions
-  defp field_extensions({:ref, _}), do: %{}
+  defp field_extensions(state, field_spec), do: field_schema_spec(state, field_spec).extensions
 
   defp field_nullable(%SchemaSpec{nullable: nullable?}), do: nullable?
   defp field_nullable({:ref, _}), do: false
 
-  defp field_read_only(%SchemaSpec{read_only: read_only}), do: read_only
-  defp field_read_only({:ref, _}), do: false
+  defp field_read_only(state, field_spec), do: field_schema_spec(state, field_spec).read_only
 
-  defp field_write_only(%SchemaSpec{write_only: write_only}), do: write_only
-  defp field_write_only({:ref, _}), do: false
+  defp field_write_only(state, field_spec), do: field_schema_spec(state, field_spec).write_only
+
+  @spec field_schema_spec(State.t(), SchemaSpec.t() | Spec.ref()) :: SchemaSpec.t()
+  defp field_schema_spec(_state, %SchemaSpec{} = field_spec), do: field_spec
+
+  defp field_schema_spec(%State{schema_specs_by_path: schema_specs_by_path}, {:ref, full_path}) do
+    Map.fetch!(schema_specs_by_path, full_path)
+  end
+
+  @spec operation_security(State.t(), OperationSpec.t()) :: Spec.security_requirements() | nil
+  defp operation_security(%State{spec: %Spec{security: root_security}}, %OperationSpec{
+         security: nil
+       }),
+       do: root_security
+
+  defp operation_security(_state, %OperationSpec{security: security}), do: security
 
   defp apply_field_casing(state, field_name) do
     case config(state)[:field_casing] do

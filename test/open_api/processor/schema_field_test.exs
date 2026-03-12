@@ -85,4 +85,67 @@ defmodule OpenAPI.Processor.SchemaFieldTest do
     assert field.required
     assert field.write_only
   end
+
+  test "preserves field metadata when a property is a schema ref" do
+    yaml = """
+    openapi: 3.0.3
+    info:
+      title: Referenced Field API
+      version: 1.0.0
+    paths:
+      /widgets:
+        get:
+          responses:
+            "200":
+              description: OK
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Widget"
+    components:
+      schemas:
+        Widget:
+          title: Widget
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              $ref: "#/components/schemas/WidgetId"
+        WidgetId:
+          type: string
+          description: Widget identifier from the shared schema.
+          deprecated: true
+          readOnly: true
+          example: widget-123
+          examples:
+            - widget-abc
+          externalDocs:
+            description: Widget id docs
+            url: https://example.com/docs/widget-id
+          x-field-note: from ref
+    """
+
+    TestSupport.with_temp_spec(yaml, fn spec_file, _dir ->
+      TestSupport.with_profile([], fn profile ->
+        state = TestSupport.process!(profile, [spec_file])
+        schema = Enum.find(Map.values(state.schemas), &(&1.title == "Widget"))
+        field = Enum.find(schema.fields, &(&1.name == "id"))
+
+        assert field.description == "Widget identifier from the shared schema."
+        assert field.deprecated
+        assert field.read_only
+        refute field.write_only
+        assert field.example == "widget-123"
+        assert field.examples == ["widget-abc"]
+
+        assert field.external_docs == %ExternalDocumentation{
+                 description: "Widget id docs",
+                 url: "https://example.com/docs/widget-id"
+               }
+
+        assert field.extensions == %{"x-field-note" => "from ref"}
+      end)
+    end)
+  end
 end

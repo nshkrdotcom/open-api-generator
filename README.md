@@ -85,9 +85,10 @@ For more information, see the [configuration guide](guides/configuration.md).
 If the available configuration isn't enough, client library authors can also reimplement portions of the code generator using _plugins_.
 Most of the crucial parts of the processing and rendering of code are implemented as default callbacks for a behaviour.
 These can be overridden for additional flexibility.
-Processed operations and schemas now preserve structured metadata such as security requirements,
-generic `x-*` extensions, operation request/response docs, and schema/field documentation data,
-so custom renderers can use the normal processed state instead of reopening raw spec files.
+Processed operations and schemas now preserve structured metadata such as effective security
+requirements, generic `x-*` extensions, operation request/response docs, and schema/field
+documentation data, so custom renderers can use the normal processed state instead of reopening
+raw spec files.
 See the [plugins guide](guides/plugins.md) for additional information.
 
 ## Usage

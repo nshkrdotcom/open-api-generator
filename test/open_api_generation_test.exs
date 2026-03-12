@@ -169,9 +169,15 @@ defmodule OpenAPIGenerationTest do
               operation.request_method == :post and operation.request_path == "/widgets"
             end)
 
+          inherited_security_operation =
+            Enum.find(operations, fn operation ->
+              operation.request_method == :get and operation.request_path == "/health"
+            end)
+
           assert operation.summary == "Create a widget"
           assert operation.security == [%{"bearerAuth" => ["widgets:write"]}]
           assert operation.extensions == %{"x-trace-category" => "widget-create"}
+          assert inherited_security_operation.security == [%{"bearerAuth" => []}]
 
           assert operation.request_body_docs == %{
                    description: "Widget payload.",
